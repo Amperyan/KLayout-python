@@ -98,7 +98,7 @@ cp_fc = Contact_Pad(origin = DPoint(CHIP.dx/6,+CHIP.dy/2), feedline_cpw_params =
 cp_fc.place(canvas)
 
 #microwave drive contact
-cp_md = Contact_Pad(origin = DPoint(CHIP.dx/3,+CHIP.dy/2), feedline_cpw_params = md_cpw_params, trans_in = DTrans.R270)
+cp_md = Contact_Pad(origin = DPoint(CHIP.dx/2,+CHIP.dy/4), feedline_cpw_params = md_cpw_params, trans_in = DTrans.R180)
 cp_md.place(canvas)
 
 # ======== Main feedline =========
@@ -113,14 +113,47 @@ feedline.place(canvas)
 
 # ======= Chain loop =========
 
-resonator_offsets = 5e3
+
 res_cpw_params = CPWParameters(7e3, 4e3)
 tmon_cpw_params = CPWParameters(20e3, 20e3)
 
-resonators_site_span = cp_feed_2.end.x - cp_feed_1.end.x
+qubit_x = cp_fc.end.x
+qubit_y = 500e3
 
-resonators_y_positions = cp_feed_2.end.y + turn_rad*3 + feed_cpw_params.b+res_cpw_params.b/2+resonator_offsets
 
+#======= Claw drawing =========
+claw_len = 200e3 
+claw = Claw(DPoint(qubit_x,qubit_y), res_cpw_params, claw_len, w_claw = 20e3, w_claw_pad=0e3, l_claw_pad = 0e3)
+claw.place(canvas)
+
+
+#====== Readout resonator drawing ======
+coupling_length = 200e3
+resonator_offsets = 5e3
+resonator_turn_radius = 40e3
+resonator_freq = 6.5 #GGZ
+meander_periods = 3
+#neck_length = 200e3
+offset_length = 200e3
+coupling_length = 450e3
+
+resonators_y_positions = cp_feed_2.end.y + turn_rad*3 + feed_cpw_params.b\
+                          +res_cpw_params.b/2+resonator_offsets
+                          
+                          
+neck_length = qubit_y - 4*resonator_turn_radius*meander_periods -\
+             5*resonator_turn_radius - offset_length - resonators_y_positions
+
+
+res_cursor = DPoint(qubit_x, resonators_y_positions)
+
+res = CPWResonator(res_cursor, res_cpw_params, resonator_turn_radius, resonator_freq, 11.45,\
+                  coupling_length = coupling_length, meander_periods = meander_periods,\
+                  neck_length = neck_length, offset_length = offset_length, trans_in = trans_in)
+res.place(canvas)
+
+
+#====== Qubit drawing ============
 tmon_arm_len = 280e3
 tmon_JJ_arm_len = 40e3
 tmon_JJ_site_span = 8e3
@@ -129,23 +162,6 @@ h_jj = 200
 w_jj = 100
 asymmetry = 0.5
 
-qubit_x = 0e3
-qubit_y = 100e3
-claw_len = 200e3 
-
-
-#readout resonator drawing
-claw = Claw(DPoint(qubit_x,qubit_y), res_cpw_params, claw_len, w_claw = 20e3, w_claw_pad=0e3, l_claw_pad = 0e3)
-coupling_length = 200e3
-res_cursor = DPoint(0, resonators_y_positions)
-
-res = CPWResonator(res_cursor, res_cpw_params, 40e3, 6+(0+4)/10, 11.45,\
-                    coupling_length=450e3,meander_periods = 3, trans_in = trans_in)
-claw.make_trans(DTrans(res.end))
-claw.place(canvas)
-res.place(canvas)
-
-#qubit drawing
 tmon = Tmon(claw.connections[1], tmon_cpw_params, tmon_arm_len, \
             tmon_JJ_arm_len, tmon_JJ_site_span, tmon_coupling_pads_len, \
             h_jj, w_jj, asymmetry, None)
@@ -153,34 +169,40 @@ tmon = Tmon(claw.connections[1], tmon_cpw_params, tmon_arm_len, \
 tmon.place(canvas, region_name = "photo")
 tmon.place(ebeam, region_name = "ebeam")
 
-
-qubit_ports.append(tmon.end)
-
+#qubit_ports.append(tmon.end)
 
 
+#========= Flux coil drawing ============
+fc_turn_radius = 240e3
+coil_distance = 20e3
+fc_segment_lengths =\
+     [cp_fc.end.y - tmon.end.y - coil_distance]
 
-#i=-6
-#for i in range(-(chain_length)//2, (chain_length)//2, 1):
-  #coupling_length = 200e3
- # res_cursor = DPoint(i*resonators_interval+resonators_interval/2, resonators_y_positions)
- # print(i)
- # trans_in = None if i>=0 else DTrans.M90
- # claw = Claw(DPoint(0,0), res_cpw_params, 200e3, w_claw = 20e3, w_claw_pad=0, l_claw_pad = 0)
-  #res = CPWResonator(res_cursor, res_cpw_params, 40e3, 6+(i+4)/10, 11.45, coupling_length=450e3,
- #                                   meander_periods = 3, trans_in = trans_in)
-#  claw.make_trans(DTrans(res.end))
- # claw.place(canvas)
- # res.place(canvas)
+fc = CPW_RL_Path(cp_fc.end, "L", fc_cpw_params, fc_turn_radius,
+     fc_segment_lengths, [] ,trans_in = DTrans.R270)
+fc.place(canvas)
 
-  #tmon = Tmon(claw.connections[1], tmon_cpw_params, tmon_arm_len, \
-     #           tmon_JJ_arm_len, tmon_JJ_site_span, tmon_coupling_pads_len, \
-    #              h_jj, w_jj, asymmetry, None)
-
- # tmon.place(canvas, region_name = "photo")
-  #tmon.place(ebeam, region_name = "ebeam")
+fc_end = FluxCoil(fc.end, fc_cpw_params, width = 20e3, trans_in = DTrans.R180)
+fc_end.place(canvas)
 
 
- # qubit_ports.append(tmon.end)
+# ====== Microwave drives ========
+md_turn_radius = 240e3
+#md_distance = tmon_arm_len
+md_distance = 20e3
+md_segment_lengths =\
+     [-200e3,\
+     -(tmon.end.y - cp_md.end.y-tmon_JJ_arm_len - tmon_JJ_site_span - tmon_cpw_params.width/2),\
+     -tmon.end.x + cp_md.end.x - 200e3 - tmon_arm_len - md_distance - tmon_cpw_params.width - \
+                tmon_cpw_params.gap - 2*md_turn_radius]
+#print(tmon.end)       
+md = CPW_RL_Path(cp_md.end, "LRLRL", md_cpw_params, md_turn_radius,
+     md_segment_lengths, [pi/2, -pi/2] ,trans_in = None)
+md.place(canvas)
+
+md_end = CPW(0, md_cpw_params.b/2, md.end, md.end + DPoint(4e3, 0))
+md_end.place(canvas)
+
 
 
 
